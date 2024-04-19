@@ -15,6 +15,7 @@ SETUP_AW = const(0x03)
 SETUP_RETR = const(0x04)
 RF_CH = const(0x05)
 RF_SETUP = const(0x06)
+
 STATUS = const(0x07)
 RX_ADDR_P0 = const(0x0A)
 TX_ADDR = const(0x10)
@@ -57,7 +58,7 @@ NOP = const(0xFF)  # use to read STATUS register
 class NRF24L01:
     def __init__(self, spi, cs, ce, channel=46, payload_size=16):
         assert payload_size <= 32
-
+        print(channel)
         self.buf = bytearray(1)
 
         # store the pins
@@ -204,7 +205,9 @@ class NRF24L01:
 
     # returns True if any data available to recv
     def any(self):
+        #print(FIFO_STATUS, self.reg_read(FIFO_STATUS) & RX_EMPTY)
         return not bool(self.reg_read(FIFO_STATUS) & RX_EMPTY)
+        
 
     def recv(self):
         # get the data
@@ -224,6 +227,7 @@ class NRF24L01:
         result = None
         while result is None and utime.ticks_diff(utime.ticks_ms(), start) < timeout:
             result = self.send_done()  # 1 == success, 2 == fail
+            
         if result == 2:
             raise OSError("send failed")
 
@@ -253,4 +257,5 @@ class NRF24L01:
         # either finished or failed: get and clear status flags, power down
         status = self.reg_write(STATUS, RX_DR | TX_DS | MAX_RT)
         self.reg_write(CONFIG, self.reg_read(CONFIG) & ~PWR_UP)
+        print(RX_DR, TX_DS, MAX_RT, status)
         return 1 if status & TX_DS else 2
