@@ -17,7 +17,7 @@ class Touch(object):
 
     def __init__(self, spi, cs, int_pin=None, int_handler=None,
                  width=240, height=320,
-                 x_min=100, x_max=1962, y_min=100, y_max=1900):
+                 x_min=100, x_max=1962, y_min=165, y_max=1965):
         """Initialize touch screen controller.
 
         Args:

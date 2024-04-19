@@ -4,7 +4,7 @@
 # Watch this video for more information about that library https://www.youtube.com/watch?v=aP8rSN-1eT0
 
 from nrf24l01 import NRF24L01
-from machine import SPI, Pin
+from machine import SPI, Pin, PWM
 from time import sleep
 import struct
 
@@ -12,8 +12,14 @@ import struct
 csn = Pin(17, mode=Pin.OUT, value=1) 
 ce = Pin(21, mode=Pin.OUT, value=0)  
 led = Pin(25, Pin.OUT)               # Onboard LED
-payload_size = 20
+payload_size = 4
 spi = SPI(0)
+
+#setup PWM outout
+pwm1 = PWM(Pin(0))
+pwm2 = PWM(Pin(1))
+pwm1.freq(1000000)
+pwm2.freq(1000000)
 
 # Define the channel or 'pipes' the radios use.
 # switch round the pipes depending if this is a sender or receiver pico
@@ -63,6 +69,12 @@ def send(nrf, msg):
     nrf.send("\n")
     nrf.start_listening()
 
+#takes the output y value from display and turns it into a percentage for the duty cycle
+#inverts it aswell because of the layout of the touch on display
+def duty_cycle_gen(y_val):
+    percentage = 1-(y_val[0]/320)
+    return percentage
+
 # main code loop
 flash_led(1)
 nrf = setup()
@@ -74,36 +86,21 @@ auto_ack(nrf)
 msg_string = ""
 count = 0
 while True:
-    msg = ""
-    
-    if role == "send":
-        send(nrf, "hello")
+    msg = 0
+    if nrf.any():
+        #print("Message received")
+        package = nrf.recv()          
+        message = struct.unpack('<i', package)
+        print(message)
+        pwm1.duty_u16(int(duty_cycle_gen(message)*65535))
+        pwm2.duty_u16(int(duty_cycle_gen(message)*65535))
 
-    
-    else:
-        # Check for Messages
-        
-        if nrf.any():
-            #print("Message received")
-            package = nrf.recv()          
-            message = struct.unpack(f"{len(package)}s", package)
-            
-            msg = message[0].decode()
-            flash_led(1)
-
-            # Check for the new line character
-            if (len(msg_string) <= 20):
-                print("full message",msg_string, msg)
-                msg_string = ""
-                count = count+1
-                print(count)
-            else:
-                if len(msg_string) <= 20:
-                    msg_string = msg_string + msg
-                    print("partial message",msg_string)
-                else:
-                    msg_string = ""
-                    print("message too long, clearing buffer")
+        # if (len(msg_string) <= 4):
+        #     print("Y Value",msg_string, msg)
+        #     msg_string = ""
+        # else:
+        #     msg_string = ""
+        #     print("message too long, clearing buffer")
 
 
 

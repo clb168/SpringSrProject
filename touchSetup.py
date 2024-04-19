@@ -29,3 +29,4 @@ def createXPT(touch_handler):
                 int_handler=touch_handler)
 
     return xpt
+

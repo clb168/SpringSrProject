@@ -1,99 +1,107 @@
 
 from nrf24l01 import NRF24L01
-from machine import SPI, Pin, idle
+from machine import SPI, Pin, Timer
 from time import sleep
-import struct
-from control import Control
+import touchSetup
 from ili9341 import Display, color565
 from xpt2046 import Touch
+import nrf_simple #this is the file where I do the processing for sending and reciveing messages
+from xgldc_font import XglcdFont
+from sys import implementation
+from os import uname
+from micropython import const
 
 GREEN = color565(127, 255, 0)
 RED = color565(204, 0, 0)
 
-rf_csn = Pin(9, mode=Pin.OUT, value=1) 
-rf_ce = Pin(7, mode=Pin.OUT, value=0)  
-led = Pin(25, Pin.OUT)               # Onboard LED
-payload_size = 20
-rf_spi = SPI(1)
 
+### main code loop ###
 
-# Define the channel or 'pipes' the radios use.
-# switch round the pipes depending if this is a sender or receiver pico
-
-role = "send"
-#role = "receive"
-
-if role == "send":
-    send_pipe = b"\xe1\xf0\xf0\xf0\xf0"
-    receive_pipe = b"\xd2\xf0\xf0\xf0\xf0"
-else:
-    send_pipe = b"\xd2\xf0\xf0\xf0\xf0"
-    receive_pipe = b"\xe1\xf0\xf0\xf0\xf0"
-
-def setup():
-    print("Initialising the nRF24L0+ Module")
-    nrf = NRF24L01(rf_spi, rf_csn, rf_ce, channel=78, payload_size=payload_size)
-    nrf.open_tx_pipe(send_pipe)
-    nrf.open_rx_pipe(1, receive_pipe)
-    nrf.start_listening()
-    return nrf
-
-def auto_ack(nrf):
-    nrf.reg_write(0x01, 0b11111000) # enable auto-ack on all pipes
-
-def flash_led(times:int=None):
-    ''' Flashed the built in LED the number of times defined in the times parameter '''
-    for _ in range(times):
-        led.value(1)
-        sleep(0.01)
-        led.value(0)
-        sleep(0.01)
-
-def send(nrf, msg):
-    print("sending message.", msg)
-    nrf.stop_listening()
-    
-    # for n in range(len(msg)):
-    encoded_string = msg.encode()
-    
-    byte_array = bytearray(encoded_string)
-    print(byte_array)
-    buf = struct.pack(f"{len(byte_array)}s", byte_array) 
-    print(buf)
-    try:
-        nrf.send(buf)
-        flash_led(1)
-    except OSError:
-        print("Sorry message not sent")   
-    nrf.send("\n")
-    nrf.start_listening()
-
-# main code loop
-#RF module
-flash_led(1)
-nrf = setup()
+#setting up the nrf module
+nrf_simple.flash_led(1)
+nrf = nrf_simple.setup()
 nrf.set_power_speed(0x06, 0x08)
 print(nrf.reg_read(0x06))
 nrf.start_listening()
-auto_ack(nrf)
-msg_string = ""
-
-#Display module
-spi = SPI(0, baudrate=40000000)
-display = Display(spi, dc=Pin(20), cs=Pin(17), rst=Pin(21))
-spi2 = SPI(0, baudrate=1000000, sck=Pin(2), mosi=Pin(3), miso=Pin(0))
+nrf_simple.auto_ack(nrf)
 
 
-display.fill_rectangle(55, 60, 130, 80, GREEN) #Go button
-display.fill_rectangle(55, 180, 130, 80, RED) #Stop button
+#setting up the display and touch module
+x_passedTo_ISR = 0
+y_passwsTo_ISR = 0
+
+EVT_NO = const(0)
+EVT_PenDown = const(1)
+EVT_PenUp   = const(2)
+event = EVT_NO
+
+TimerReached = False
+
+def xpt_touch(x, y):
+    global event, x_passedTo_ISR, y_passedTo_ISR
+    event = EVT_PenDown
+    x_passedTo_ISR = x
+    y_passedTo_ISR = y
+
+display = touchSetup.createMyDisplay()
+xptTouch = touchSetup.createXPT(xpt_touch)
+unispace = XglcdFont('Unispace12x24.c', 12, 24)
+
+display.fill_rectangle(0, 0, display.width, display.height/2, GREEN) #green top half for go - will make gradient later
+display.fill_rectangle(0, 160, display.width, 159, RED) #red bottom half for stop - will make gradient later
+display.draw_text(0, 0, "Green for Go!", unispace,
+                  color565(255, 255, 255), background=GREEN)
+display.draw_text(0, display.height-25, "Its a red light!", unispace,
+                  color565(255, 255, 255), background=RED)
+
+tim = Timer()
+def TimerTick(timer):
+    global TimerReached
+    TimerReached = True
+
+tim.init(freq=30, mode=Timer.PERIODIC, callback=TimerTick)
+
+touching = False
+
+#only care about the y value so commenting out the x value
+lastX = 0
+lastY = 0
+
+while True:
+    curEvent = event
+    event = EVT_NO
+    if curEvent!= EVT_NO:
+        if curEvent == EVT_PenDown:
+            
+            touching = True
+            lastY = y_passedTo_ISR
+            
+            #touchXY = xptTouch.get_touch()
+            #xptTouch.send_command(xptTouch.GET_Y)
+    
+            # if touchXY != None:
+            #     touchX = touchXY[0]
+            #     touchY = touchXY[1]
+            
+    if TimerReached:
+        TimerReached = False
+        
+        if touching:
+            buff = xptTouch.raw_touch()
+            if buff is not None:
+                x, y = xptTouch.normalize(*buff)
+                lastX = x
+                lastY = y
+                display.fill_circle(240-x, y, 1, color565(255, 255, 255))
+                print(str(y))
+                nrf_simple.send(nrf, y)  
+            else:
+                event = EVT_PenUp
+                touching = False
 
 
-
-ctrl = Control(display, spi2)
 
     
-while True:
-    print(ctrl.return_y())
 
 # while True:
 #     msg = ""
