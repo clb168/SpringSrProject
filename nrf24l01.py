@@ -257,5 +257,5 @@ class NRF24L01:
         # either finished or failed: get and clear status flags, power down
         status = self.reg_write(STATUS, RX_DR | TX_DS | MAX_RT)
         self.reg_write(CONFIG, self.reg_read(CONFIG) & ~PWR_UP)
-        print(RX_DR, TX_DS, MAX_RT, status)
+        #print(RX_DR, TX_DS, MAX_RT, status)
         return 1 if status & TX_DS else 2

@@ -10,6 +10,7 @@ from xgldc_font import XglcdFont
 from sys import implementation
 from os import uname
 from micropython import const
+from box_bounce import Box
 
 GREEN = color565(127, 255, 0)
 RED = color565(204, 0, 0)
@@ -54,20 +55,27 @@ display.draw_text(0, 0, "Green for Go!", unispace,
 display.draw_text(0, display.height-25, "Its a red light!", unispace,
                   color565(255, 255, 255), background=RED)
 
+
+#making the slider box
+ScrollBox = Box(display.width, display.height, 40, display, color565(255, 255, 255))
+display.fill_vrect(230, 0, 10, 319, color565(255,255,255))
+ScrollBox.draw(230, 180)
+
 tim = Timer()
 def TimerTick(timer):
     global TimerReached
     TimerReached = True
 
-tim.init(freq=30, mode=Timer.PERIODIC, callback=TimerTick)
+tim.init(freq=25, mode=Timer.PERIODIC, callback=TimerTick)
 
 touching = False
 
-#only care about the y value so commenting out the x value
-lastX = 0
+
+counter = 0
 lastY = 0
 
 while True:
+    
     curEvent = event
     event = EVT_NO
     if curEvent!= EVT_NO:
@@ -89,12 +97,18 @@ while True:
         if touching:
             buff = xptTouch.raw_touch()
             if buff is not None:
+                counter += 1
                 x, y = xptTouch.normalize(*buff)
                 lastX = x
                 lastY = y
-                display.fill_circle(240-x, y, 1, color565(255, 255, 255))
-                print(str(y))
-                nrf_simple.send(nrf, y)  
+                #display.fill_vrect(220, y-20, 10, 40, color565(255, 255, 255))
+                ScrollBox.draw(230, y)
+                # if counter == 2:
+                #     counter = 0
+                nrf_simple.send(nrf, y)
+                    
+                    
+                      
             else:
                 event = EVT_PenUp
                 touching = False

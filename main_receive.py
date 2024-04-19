@@ -9,11 +9,17 @@ from time import sleep
 import struct
 
 
-csn = Pin(17, mode=Pin.OUT, value=1) 
-ce = Pin(21, mode=Pin.OUT, value=0)  
+# csn = Pin(17, mode=Pin.OUT, value=1) 
+# ce = Pin(21, mode=Pin.OUT, value=0)  
+# led = Pin(25, Pin.OUT)               # Onboard LED
+# payload_size = 4
+# spi = SPI(0)
+
+csn = Pin(9, mode=Pin.OUT, value=1) 
+ce = Pin(7, mode=Pin.OUT, value=0)  
 led = Pin(25, Pin.OUT)               # Onboard LED
 payload_size = 4
-spi = SPI(0)
+spi = SPI(1)
 
 #setup PWM outout
 pwm1 = PWM(Pin(0))
@@ -91,7 +97,7 @@ while True:
         #print("Message received")
         package = nrf.recv()          
         message = struct.unpack('<i', package)
-        print(message)
+        
         pwm1.duty_u16(int(duty_cycle_gen(message)*65535))
         pwm2.duty_u16(int(duty_cycle_gen(message)*65535))
 
